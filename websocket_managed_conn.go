@@ -50,7 +50,7 @@ func (rtm *RTM) ManageConnection() {
 		go rtm.handleIncomingEvents(keepRunning)
 
 		// this should be a blocking call until the connection has ended
-		rtm.handleEvents(keepRunning, 30*time.Second)
+		rtm.handleEvents(keepRunning, 5*time.Second)
 
 		// after being disconnected we need to check if it was intentional
 		// if not then we should try to reconnect
@@ -133,6 +133,7 @@ func (rtm *RTM) killConnection(keepRunning chan bool, intentional bool) error {
 	rtm.wasIntentional = intentional
 	err := rtm.conn.Close()
 	rtm.IncomingEvents <- RTMEvent{"disconnected", &DisconnectedEvent{intentional}}
+	rtm.lastPong = time.Now()
 	return err
 }
 
@@ -222,6 +223,13 @@ func (rtm *RTM) sendOutgoingMessage(msg OutgoingMessage) {
 // each successful 'PING' send so latency can be detected upon a 'PONG'
 // response.
 func (rtm *RTM) ping() error {
+
+	diff := time.Since(rtm.lastPong)
+	rtm.Debugf("%s second from last pong", diff)
+	if diff > 10*time.Second {
+		return fmt.Errorf("%s second from last pong", diff)
+	}
+
 	id := rtm.idGen.Next()
 	rtm.Debugln("Sending PING ", id)
 	rtm.pings[id] = time.Now()
@@ -309,6 +317,7 @@ func (rtm *RTM) handleAck(event json.RawMessage) {
 // connection's latency.
 func (rtm *RTM) handlePong(event json.RawMessage) {
 	pong := &Pong{}
+	rtm.lastPong = time.Now()
 	if err := json.Unmarshal(event, pong); err != nil {
 		rtm.Debugln("RTM Error unmarshalling 'pong' event:", err)
 		rtm.Debugln(" -> Erroneous 'ping' event:", string(event))

@@ -31,6 +31,7 @@ type RTM struct {
 	rawEvents        chan json.RawMessage
 	wasIntentional   bool
 	isConnected      bool
+	lastPong         time.Time
 
 	// Client is the main API, embedded
 	Client
@@ -48,6 +49,7 @@ func newRTM(api *Client) *RTM {
 		IncomingEvents:   make(chan RTMEvent, 50),
 		outgoingMessages: make(chan OutgoingMessage, 20),
 		pings:            make(map[int]time.Time),
+		lastPong:         time.Now(),
 		isConnected:      false,
 		wasIntentional:   true,
 		killChannel:      make(chan bool),
